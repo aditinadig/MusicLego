@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Guitar Sample Test</title>
+
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      background: #1f1f1f;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding-top: 60px;
+      gap: 20px;
+    }
+
+    h1 {
+      margin-bottom: 10px;
+    }
+
+    .chords {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    button {
+      font-size: 15px;
+      padding: 12px 18px;
+      border-radius: 999px;
+      border: none;
+      cursor: pointer;
+      background: #ff6b4a;
+      color: white;
+      min-width: 100px;
+    }
+
+    button.secondary {
+      background: #444;
+    }
+
+    button:active {
+      transform: scale(0.97);
+    }
+  </style>
+</head>
+<body>
+
+<h1>Guitar Sample Test</h1>
+
+<!-- Load -->
+<div class="chords">
+  <button onclick="initAudio()">Load Guitar Samples</button>
+</div>
+
+<!-- Raw samples -->
+<div class="chords">
+  <button class="secondary" onclick="playRawSample('E2')">Play E2 (raw)</button>
+  <button class="secondary" onclick="playRawSample('E3')">Play E3 (raw)</button>
+  <button class="secondary" onclick="playRawSample('E4')">Play E4 (raw)</button>
+  <button class="secondary" onclick="playRawSample('E5')">Play E5 (raw)</button>
+</div>
+
+<!-- Chords -->
+<div class="chords">
+  <button onclick="playGuitarChord('C')">C</button>
+  <button onclick="playGuitarChord('Am')">Am</button>
+  <button onclick="playGuitarChord('F')">F</button>
+  <button onclick="playGuitarChord('G')">G</button>
+  <button onclick="playGuitarChord('Dm')">Dm</button>
+  <button onclick="playGuitarChord('Em')">Em</button>
+</div>
+
+<script>
+  let audioContext;
+
+  // Guitar samples you recorded
+  const SAMPLE_DEFS = [
+    { name: "E2", midi: 40, url: "E2.wav" },
+    { name: "E3", midi: 52, url: "E3.wav" },
+    { name: "E4", midi: 64, url: "E4.wav" },
+    { name: "E5", midi: 76, url: "E5.wav" },
+  ];
+
+  // Loaded samples
+  const samples = {};
+
+  // Chords defined in MIDI (raw, no strum, no envelope)
+  const CHORDS = {
+    C:  [48, 52, 55, 60, 64],   // C3 E3 G3 C4 E4
+    Am: [45, 48, 52, 57, 60],   // A2 C3 E3 A3 C4
+    F:  [41, 45, 48, 53],       // F2 A2 C3 F3
+    G:  [43, 47, 50, 55, 59],   // G2 B2 D3 G3 B3
+    Dm: [38, 41, 45, 50],       // D2 F2 A2 D3
+    Em: [40, 45, 47, 52, 55],   // E2 A2 B2 E3 G3
+  };
+
+  /* =========================
+     Audio initialization
+     ========================= */
+
+  async function initAudio() {
+    if (!audioContext) {
+      audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    }
+
+    // Prevent double-loading
+    if (Object.keys(samples).length > 0) {
+      console.log("Samples already loaded");
+      return;
+    }
+
+    for (const s of SAMPLE_DEFS) {
+      const res = await fetch(s.url);
+      const arrayBuffer = await res.arrayBuffer();
+      const buffer = await audioContext.decodeAudioData(arrayBuffer);
+
+      samples[s.name] = {
+        midi: s.midi,
+        buffer
+      };
+    }
+
+    console.log("Guitar samples loaded");
+  }
+
+  /* =========================
+     Utility functions
+     ========================= */
+
+  function closestSample(targetMidi) {
+    return Object.values(samples).reduce((best, s) =>
+      Math.abs(targetMidi - s.midi) < Math.abs(targetMidi - best.midi)
+        ? s
+        : best
+    );
+  }
+
+  function midiToPlaybackRate(targetMidi, sampleMidi) {
+    return Math.pow(2, (targetMidi - sampleMidi) / 12);
+  }
+
+  /* =========================
+     Playback
+     ========================= */
+
+  function playRawSample(name) {
+    if (!audioContext || !samples[name]) return;
+
+    const src = audioContext.createBufferSource();
+    src.buffer = samples[name].buffer;
+    src.connect(audioContext.destination);
+    src.start();
+  }
+
+  function playChord(midiNotes) {
+    if (!audioContext || Object.keys(samples).length === 0) return;
+
+    const now = audioContext.currentTime;
+
+    midiNotes.forEach((midi) => {
+      const sample = closestSample(midi);
+
+      const src = audioContext.createBufferSource();
+      src.buffer = sample.buffer;
+      src.playbackRate.value = midiToPlaybackRate(midi, sample.midi);
+
+      src.connect(audioContext.destination);
+      src.start(now);
+    });
+  }
+
+  function playGuitarChord(name) {
+    const chord = CHORDS[name];
+    if (!chord) return;
+    playChord(chord);
+  }
+</script>
+
+</body>
+</html>
