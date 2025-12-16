@@ -81,9 +81,14 @@ export class GuitarWavEngine {
     });
   }
 
-  async playMidi(midi: number, whenOffsetSec: number) {
-    const ctx = await this.ensureAudio();
-    await this.load();
+  playMidi(midi: number, whenOffsetSec: number) {
+    // Synchronous scheduling - assumes audio is already loaded
+    // This prevents microdelays from async operations
+    const ctx = this.ctx;
+    if (!ctx || !this.loaded) {
+      console.warn("Audio not loaded, skipping note");
+      return;
+    }
 
     const samplesArr = Object.values(this.samples);
     if (samplesArr.length === 0) return;
@@ -98,5 +103,18 @@ export class GuitarWavEngine {
     // ✅ IMPORTANT: convert relative offset to absolute AudioContext time
     const when = ctx.currentTime + 0.02 + whenOffsetSec;
     src.start(when);
+  }
+
+  async stop() {
+    const ctx = this.ctx;
+    if (ctx && ctx.state !== "closed") {
+      await ctx.suspend();
+      // Create a new context for future playback
+      this.ctx = null;
+    }
+  }
+
+  getAudioContext() {
+    return this.ctx;
   }
 }

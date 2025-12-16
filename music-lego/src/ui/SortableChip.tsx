@@ -23,7 +23,7 @@ export function SortableChip({
         transition,
         padding: "10px 14px",
         borderRadius: 999,
-        background: "#ff6b4a",
+        background: "#ff8c42",
         color: "white",
         display: "inline-flex",
         alignItems: "center",
