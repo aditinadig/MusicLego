@@ -20,7 +20,10 @@ export class GuitarWavEngine {
   private samples: Record<string, LoadedSample> = {};
 
   async ensureAudio() {
-    if (!this.ctx) this.ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+    if (!this.ctx)
+      this.ctx = new (window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext })
+          .webkitAudioContext)();
     if (this.ctx.state !== "running") await this.ctx.resume();
     return this.ctx;
   }
@@ -76,5 +79,24 @@ export class GuitarWavEngine {
       src.start(now);
       if (stopAtSec != null) src.stop(now + stopAtSec);
     });
+  }
+
+  async playMidi(midi: number, whenOffsetSec: number) {
+    const ctx = await this.ensureAudio();
+    await this.load();
+
+    const samplesArr = Object.values(this.samples);
+    if (samplesArr.length === 0) return;
+
+    const sample = closestSample(midi, samplesArr);
+
+    const src = ctx.createBufferSource();
+    src.buffer = sample.buffer;
+    src.playbackRate.value = Math.pow(2, (midi - sample.midi) / 12);
+    src.connect(ctx.destination);
+
+    // ✅ IMPORTANT: convert relative offset to absolute AudioContext time
+    const when = ctx.currentTime + 0.02 + whenOffsetSec;
+    src.start(when);
   }
 }

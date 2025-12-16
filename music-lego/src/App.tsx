@@ -2,6 +2,8 @@ import { useMemo, useState } from "react";
 import { buildAllTriads, buildDiatonicChords } from "./music/theory";
 import type { Chord, Note, ScaleName } from "./types/music";
 import { GuitarWavEngine } from "./audio/guitarWavEngine";
+import { generatePhraseEvents, PHRASE_PRESETS } from "./music/phrasePresets";
+import type { PhrasePreset } from "./music/phrasePresets";
 
 type TimeSig = "4/4" | "3/3" | "2/2";
 
@@ -18,7 +20,7 @@ function clamp(n: number, min: number, max: number) {
 type Phrase = {
   id: string;
   name: string;
-  // bars[barIndex][slotIndex] = chord or null
+  preset: PhrasePreset;
   bars: (Chord | null)[][];
 };
 
@@ -87,6 +89,7 @@ export default function App() {
     const phrase: Phrase = {
       id,
       name,
+      preset: "SUSTAIN_PAD",
       bars: [emptyBar],
     };
 
@@ -213,15 +216,9 @@ export default function App() {
     );
   }
 
-  async function playPhrase(phrase: Phrase, startOffsetSec: number) {
-    await ensureGuitar();
-
+  function playPhrase(phrase: Phrase, startOffsetSec: number) {
     const secPerBeat = 60 / bpm;
-
-    // 🔥 NEW: each slot lasts 2 beats
     const slotDuration = 2 * secPerBeat;
-
-    // One visual bar = slotCount slots × 2 beats
     const barSec = slotCount * slotDuration;
 
     let offset = startOffsetSec;
@@ -231,12 +228,17 @@ export default function App() {
 
       for (const slot of bar) {
         if (slot) {
-          // Full sustain, overlapping allowed
-          await engine.playChord(slot, offset + slotOffset);
+          const events = generatePhraseEvents(
+            phrase.preset,
+            slot,
+            slotDuration
+          );
+          for (const ev of events) {
+            engine.playMidi(ev.midi, offset + slotOffset + ev.timeOffset);
+          }
         }
         slotOffset += slotDuration;
       }
-
       offset += barSec;
     }
 
@@ -960,6 +962,43 @@ export default function App() {
                       </div>
                     </div>
                   ))}
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    marginTop: 6,
+                  }}
+                >
+                  <span style={{ fontSize: 13, opacity: 0.75 }}>Preset</span>
+
+                  <select
+                    value={selectedPhrase.preset}
+                    onChange={(e) => {
+                      const preset = e.target.value as PhrasePreset;
+                      setPhrases((prev) =>
+                        prev.map((p) =>
+                          p.id === selectedPhrase.id ? { ...p, preset } : p
+                        )
+                      );
+                    }}
+                    style={{
+                      padding: "8px 10px",
+                      borderRadius: 10,
+                      background: "#1f1f1f",
+                      color: "white",
+                      border: "1px solid rgba(255,255,255,0.15)",
+                      fontWeight: 700,
+                    }}
+                  >
+                    {Object.entries(PHRASE_PRESETS).map(([k, label]) => (
+                      <option key={k} value={k}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div style={{ marginTop: 12, opacity: 0.7, fontSize: 13 }}>
